@@ -14,23 +14,34 @@
 
 #"hola".encode() y datos.decode() → para pasar de string a bytes y al revés.
 
+# ESTO ES LA CAPA DE TRANSPORTES
+
+import socket
 
 host = "127.0.0.1"
 port = 8888
 
-create_socket() 
-connect(HOST, PORT)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+print("Conectando al servidor")
+s.connect((host, port))
+print(f"Conectado en {host}:{port}")
 
-#Bucle de repetir escuchar la lectura de teclado
+print("Conectado al servidor")
+# Bucle de repetir escuchar la lectura de teclado
 while True:
-    DATA = input("Ingrese algo: " + "\n")
+    DATA = input("Ingrese algo: ")
+    print(f"Enviando: {DATA}")
     if DATA == "exit":
         break
-    DATA = DATA.encode()
-    sendall(DATA)
-    recv = recv(1024)
-    if not recv:
+    DATA = (DATA + "\n").encode()
+    s.sendall(DATA)
+    data = s.recv(1024)
+    if not data:
         break
-    print(recv.decode())
-
-close()
+    print(f"Recibido: {data.decode()}")
+    
+    confirm = input("¿Desea cerrar la conexión? (s/n): ")
+    if confirm.lower() == "s":
+        break
+s.close()
+print("Conexión cerrada")
