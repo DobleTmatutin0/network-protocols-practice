@@ -1,4 +1,4 @@
-#define MAX_USERNAME 256
+#define MAX_USERNAME 50
 
 typedef struct {
     int socket;                     
