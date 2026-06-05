@@ -39,9 +39,22 @@ while True:
     if not data:
         break
     print(f"Recibido: {data.decode()}")
-    
-    confirm = input("¿Desea cerrar la conexión? (s/n): ")
-    if confirm.lower() == "s":
-        break
+
 s.close()
 print("Conexión cerrada")
+
+# --- Identificación ---
+# pedir el nombre al usuario              
+nombre = input("Tu nombre: ")
+
+# armar el mensaje segun el protocolo:    
+mensaje = "LOGIN " + nombre + "\n"
+# enviarlo                                 
+s.sendall(mensaje.encode())
+
+# recibir la respuesta del server, ver como armamos el protocolo 
+data = s.recv(1024).decode()
+print(data)
+# interpretarla:
+#     si empieza con "OK"    -> mostrar que entraste (con el id si lo devuelve)
+#     si empieza con "ERROR" -> mostrar el error y decidir (reintentar o salir)
