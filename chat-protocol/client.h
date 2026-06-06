@@ -1,7 +1,10 @@
-#define MAX_USERNAME 256
+#include <stdbool.h>
+
+#define MAX_USERNAME 32
+
 
 typedef struct {
-    int socket;                     
+    int socket_fd;                     
     char username[MAX_USERNAME];    
-    int logged_in;                  // Si está logueado es 1, sino 0
+    bool logged_in; // Si está logueado es 1, sino 0
 } Client;
