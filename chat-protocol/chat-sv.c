@@ -14,15 +14,20 @@
 #define PORT 8888
 #define IP "127.0.0.1"
 #define MAX_CLIENTS 10
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 1025
 
 
 
 Client clients[MAX_CLIENTS];
 int num_clients = 0;  // Cuántos clientes hay conectados ahora
+int max_sd, sd, activity, i, valread;
 
 // Socket File Descriptor
 static int socketFileDescriptor;
+
+fd_set fds_to_select;
+
+struct sockaddr_in client_addr;
 
 void signHandler(int signal) {
     close(socketFileDescriptor);
@@ -33,7 +38,7 @@ void signHandler(int signal) {
 // Buscar un cliente por su socket (id)
 Client* find_client_by_socket(int socket) {
     for (int i = 0; i < num_clients; i++) {
-        if (clients[i].socket == socket) {
+        if (clients[i].socket_fd == socket) {
             return &clients[i];
         }
     }
@@ -83,36 +88,94 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // inicializa todos los sockets en 0, es decir q estan inactivos
+    for (int i = 0; i < MAX_CLIENTS ;i ++) {
+        clients[i].socket_fd = 0;
+    }
+
     while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
-        int client_socket = accept(socketFileDescriptor, (struct sockaddr*)&client_addr, &client_len);
+        // limpiar conjunto de descriptores q escucha el sv
+        FD_ZERO(&fds_to_select);
 
-        if (client_socket < 0) {
-            perror("accept() falló");
-            continue;
-        }
+        FD_SET(socketFileDescriptor, &fds_to_select);
+        max_sd = socketFileDescriptor;
 
-        int added = 0;
-        for (int i = 0; i < MAX_CLIENTS; i++) {
-            if (clients[i].socket == 0) {
-                clients[i].socket = client_socket;
-                clients[i].logged_in = 0;
-                clients[i].username[0] = '\0';
-                printf("[SERVIDOR] Cliente nuevo aceptado en slot %d\n", i);
-                added = 1;
-                break;
+         // Agregar los sockets de los clientes al conjunto
+        for (i = 0; i < MAX_CLIENTS; i++) {
+            sd = clients[i].socket_fd;
+            if (sd > 0) {
+                FD_SET(sd, &fds_to_select);
+            }
+            // Actualizar el descriptor máximo para select
+            if (sd > max_sd) {
+                max_sd = sd;
             }
         }
 
-        if (!added) {
-            send_to_client(client_socket, "ERROR Servidor lleno\n");
-            close(client_socket);
-            printf("[SERVIDOR] Rechazado cliente: servidor lleno\n");
+        activity = select(max_sd + 1, &fds_to_select, NULL, NULL, NULL);
+
+        if (FD_ISSET(socketFileDescriptor, &fds_to_select)) {
+            socklen_t client_len = sizeof(client_addr);
+
+            int new_socket = accept(socketFileDescriptor, (struct sockaddr *)&client_addr, &client_len);
+            if (new_socket < 0) {
+                perror("accept");
+                exit(EXIT_FAILURE);
+            }
+            printf("Nueva conexión, socket fd: %d, IP: %s, Puerto: %d\n", 
+                   new_socket, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+            // Guardar nuevo socket en el array
+            for (i = 0; i < MAX_CLIENTS; i++) {
+                if (clients[i].socket_fd == 0) {
+                    clients[i].socket_fd = new_socket;
+                    break;
+                }
+            }
         }
+
+        for (i = 0; i < MAX_CLIENTS; i++) {
+            sd = clients[i].socket_fd;
+
+            if (sd > 0 && FD_ISSET(sd, &fds_to_select)) {
+            
+                char buffer[BUFFER_SIZE];
+            
+                int bytes = recv(
+                    sd,
+                    buffer,
+                    sizeof(buffer),
+                    0
+                );
+            
+                if (bytes == 0) {
+                    printf("Cliente %d desconectado\n", sd);
+                
+                    close(sd);
+                
+                    clients[i].socket_fd = 0;
+                    clients[i].logged_in = false;
+                    clients[i].username[0] = '\0';
+                
+                    continue;
+                }
+            
+                if (bytes < 0) {
+                    perror("recv");
+                    continue;
+                }
+            
+                buffer[bytes] = '\0';
+            
+                printf(
+                    "Cliente %d envió %d bytes: %s\n",
+                    sd,
+                    bytes,
+                    buffer
+                );
+            }
+        }
+
     }
     
-
-
-
 }
