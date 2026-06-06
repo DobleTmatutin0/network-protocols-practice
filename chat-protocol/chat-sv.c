@@ -15,7 +15,6 @@
 #define IP "127.0.0.1"
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
-#define MAX_USERNAME 50
 
 
 
@@ -61,13 +60,59 @@ int main(int argc, char* argv[]) {
     
     printf("[SERVIDOR] Iniciando Chat Server...\n");
     
-    // ========== CREAR SOCKET SERVIDOR ==========
-    socketFileDescriptor = socket(AF_INET, SOCK_DGRAM, 0);
-
-    
+    socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
     if (socketFileDescriptor < 0) {
         perror("socket() falló");
         exit(EXIT_FAILURE);
     }
-    printf("[SERVIDOR] Socket creado exitosamente\n");
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr(IP);
+
+    if (bind(socketFileDescriptor, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("bind() falló");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Server corriendo exitosamente\n");
+
+    if (listen(socketFileDescriptor, MAX_CLIENTS) < 0) {
+        perror("listen() falló");
+        exit(EXIT_FAILURE);
+    }
+
+    while (1) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+        int client_socket = accept(socketFileDescriptor, (struct sockaddr*)&client_addr, &client_len);
+
+        if (client_socket < 0) {
+            perror("accept() falló");
+            continue;
+        }
+
+        int added = 0;
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clients[i].socket == 0) {
+                clients[i].socket = client_socket;
+                clients[i].logged_in = 0;
+                clients[i].username[0] = '\0';
+                printf("[SERVIDOR] Cliente nuevo aceptado en slot %d\n", i);
+                added = 1;
+                break;
+            }
+        }
+
+        if (!added) {
+            send_to_client(client_socket, "ERROR Servidor lleno\n");
+            close(client_socket);
+            printf("[SERVIDOR] Rechazado cliente: servidor lleno\n");
+        }
+    }
+    
+
+
+
 }
