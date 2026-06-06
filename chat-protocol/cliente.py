@@ -1,60 +1,124 @@
-#socket.socket(socket.AF_INET, socket.SOCK_STREAM) → crea un socket TCP 
-# (igual que en C: AF_INET = IPv4, SOCK_STREAM = TCP).
-
-#s.connect((host, port)) → se conecta al servidor. 
-# Ojo que el argumento es una tupla (host, port), con doble paréntesis.
-
-#s.sendall(datos) → manda datos (en bytes). 
-# Se usa sendall y no send porque send puede mandar solo una parte; sendall se asegura de mandar todo.
-
-#s.recv(1024) → recibe hasta 1024 bytes y los devuelve como bytes. 
-# Si te devuelve b'' (vacío) significa que el server cerró la conexión
-
-#s.close() → cierra el socket
-
-#"hola".encode() y datos.decode() → para pasar de string a bytes y al revés.
-
-# ESTO ES LA CAPA DE TRANSPORTES
-
 import socket
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
 
+BANNER = """
+            █████████████████████████████████
+            ██ ▄▄▄▄▄ █▀▀ ██▀▀ ▀  ▄▀█ ▄▄▄▄▄ ██
+            ██ █   █ █▄▀██▀█▄▀▀▄█▄▄█ █   █ ██
+            ██ █▄▄▄█ █ ▄ █ ▀▀ ▀  ▀██ █▄▄▄█ ██
+            ██▄▄▄▄▄▄▄█ █ ▀▄█ █▄▀ ▀▄█▄▄▄▄▄▄▄██
+            ██  ▀▄▀█▄▄█▀█  ▀ █▀▀▀█▀█ ▄▄▀▄▄▀██
+            ███▀ ▄▄▄▄  ▀▀  ▀█▀▄▄▀▄▄█▄▀▀▄  ███
+            ██▀ ▀█▄ ▄█▄▀▄ █▄█▀█ █ ▄ ▄▀█▄█▄▄██
+            ███▄▄▀ ▀▄ ▀▄▄ █  ▀   ▀ ▄▀██ ▄ ▄██
+            ███ ▄ ▄▄▄ ██ █ ▄██▀▄▀▄▄▄▀ █▀█▄▀██
+            ██▄█▄█▄▀▄█▀▀▀▄ █▄▀█▀█▀▄▄ ▄███  ██
+            ██▄██▄█▄▄█   ▀█ ▄▄█▀█▀ ▄▄▄ █ ▀▀██
+            ██ ▄▄▄▄▄ █▄▄ ██▀▄█▀▄ █ █▄█ ▀▀▄▀██
+            ██ █   █ █▀ ▀▀ █▀██▄█▀▄▄ ▄ ▀▀▀███
+            ██ █▄▄▄█ █▀█▄█ ▀▀█▀ ▄▄▀▄██ ▄▄▀▄██
+            ██▄▄▄▄▄▄▄█▄██▄▄▄▄▄▄▄▄█▄██▄▄██▄███
+            ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+
+                by el Team mas picantovich
+                            
+ ██████╗██╗  ██╗ █████╗ ████████╗████████╗███████╗██████╗ 
+██╔════╝██║  ██║██╔══██╗╚══██╔══╝╚══██╔══╝██╔════╝██╔══██╗
+██║     ███████║███████║   ██║      ██║   █████╗  ██████╔╝
+██║     ██╔══██║██╔══██║   ██║      ██║   ██╔══╝  ██╔══██╗
+╚██████╗██║  ██║██║  ██║   ██║      ██║   ███████╗██║  ██║
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═╝
+        Cliente de chat  ·  IF019 Redes  ·  UNPSJB
+"""
+print(BANNER)
+
+def mostrar_banner():
+    print(BANNER)
+def mostrar_ayuda():
+    print("""
+Comandos:
+  /list                    ver quién está conectado
+  /msg <destino> <texto>   mandar un mensaje privado
+  /who <nombre>            info de un usuario
+  /ping                    chequear la conexión
+  /help                    esta ayuda
+  /quit                    salir
+""")
+
+
+def manejar_entrada(s, texto):
+    texto = texto.strip()
+    if not texto:
+        return "local"                 # ignorar líneas vacías
+
+    # --- comandos LOCALES (no van al server) ---
+    if texto == "/help":
+        mostrar_ayuda()
+        return "local"
+    if texto == "/quit":
+        s.sendall(b"LOGOUT\n")         # le avisamos al server antes de irnos
+        return "salir"
+
+    # --- comandos de RED (se traducen al protocolo y se mandan) ---
+    if texto == "/list":
+        s.sendall(b"LIST\n")
+        return "red"
+    elif texto.startswith("/msg "):
+        cuerpo = texto[len("/msg "):]   # "ana hola" -> "MSG ana hola"
+        s.sendall(("MSG " + cuerpo + "\n").encode())
+        return "red"
+
+    # TODO: /who <nombre>       -> WHO <nombre>
+    # TODO: /ping               -> PONG
+    # TODO: /file <dest> <ruta> -> (header FILE + bytes, lo vemos aparte)
+
+    print("Comando desconocido. Escribí /help para ver la lista.")
+    return "local"
+
+
+#--------------PROGRAMA-------------------------
+#Conectar al sv
 host = "127.0.0.1"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-print("Conectando al servidor")
+print("[CLIENT] Conectando al servidor")
 s.connect((host, port))
-print(f"Conectado en {host}:{port}")
+print(f"[CLIENT] Conectando al servidor: {host}:{port}")
 
-print("Conectado al servidor")
-# Bucle de repetir escuchar la lectura de teclado
+#Login
+nombre = input("Quien sos?: ")
+s.sendall(("LOGIN " + nombre + "\n").encode())
+print(f"[Login] Login enviado: {nombre} a {host}:{port}")
+respuesta = s.recv(1024).decode()
+print(f"[Login] Respuesta del servidor: {respuesta}")
+if respuesta.startswith("OK"):
+    print(f"[Login] entraste al chat: {nombre}", respuesta)
+    s.sendall(("LIST\n").encode())
+    respuesta = s.recv(1024).decode()
+    print(f"[CLIENT] Respuesta del servidor: {respuesta}")
+else:
+    print("[Error] Error en el login", respuesta)
+    s.close()
+    sys.exit()
+
+# Loop
 while True:
-    DATA = input("Ingrese algo: ")
-    print(f"Enviando: {DATA}")
-    if DATA == "exit":
-        break
-    DATA = (DATA + "\n").encode()
-    s.sendall(DATA)
-    data = s.recv(1024)
-    if not data:
-        break
-    print(f"Recibido: {data.decode()}")
+    texto = input(">")
+    estado = manejar_entrada(s, texto)
 
+    if estado == "salir":
+        break
+
+    if estado == "red":
+        respuesta = s.recv(1024).decode()
+        if not respuesta:
+            print("[Error] Error de conexion")
+            break
+        print(f"[Chat] Recibido: {respuesta}")
+    
+
+# Cerrar la conexión
 s.close()
-print("Conexión cerrada")
-
-# --- Identificación ---
-# pedir el nombre al usuario              
-nombre = input("Tu nombre: ")
-
-# armar el mensaje segun el protocolo:    
-mensaje = "LOGIN " + nombre + "\n"
-# enviarlo                                 
-s.sendall(mensaje.encode())
-
-# recibir la respuesta del server, ver como armamos el protocolo 
-data = s.recv(1024).decode()
-print(data)
-# interpretarla:
-#     si empieza con "OK"    -> mostrar que entraste (con el id si lo devuelve)
-#     si empieza con "ERROR" -> mostrar el error y decidir (reintentar o salir)
+print("[CLIENT] Conexión cerrada")
