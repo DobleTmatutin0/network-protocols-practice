@@ -129,6 +129,8 @@ int main(int argc, char* argv[]) {
             for (i = 0; i < MAX_CLIENTS; i++) {
                 if (clients[i].socket_fd == 0) {
                     clients[i].socket_fd = new_socket;
+                    clients[i].logged_in = false;
+                    clients[i].username[0] = '\0';
                     break;
                 }
             }
@@ -138,41 +140,59 @@ int main(int argc, char* argv[]) {
             sd = clients[i].socket_fd;
 
             if (sd > 0 && FD_ISSET(sd, &fds_to_select)) {
-            
                 char buffer[BUFFER_SIZE];
-            
-                int bytes = recv(
-                    sd,
-                    buffer,
-                    sizeof(buffer),
-                    0
-                );
-            
+                int bytes = recv(sd, buffer, sizeof(buffer) - 1, 0);
+
                 if (bytes == 0) {
                     printf("Cliente %d desconectado\n", sd);
-                
                     close(sd);
-                
                     clients[i].socket_fd = 0;
                     clients[i].logged_in = false;
                     clients[i].username[0] = '\0';
-                
                     continue;
                 }
-            
+
                 if (bytes < 0) {
                     perror("recv");
                     continue;
                 }
-            
+
                 buffer[bytes] = '\0';
-            
-                printf(
-                    "Cliente %d envió %d bytes: %s\n",
-                    sd,
-                    bytes,
-                    buffer
-                );
+                printf("Cliente %d envió %d bytes: %s\n", sd, bytes, buffer);
+
+                if (strncmp(buffer, "LOGIN ", 6) == 0) {
+                    char nombre[MAX_USERNAME];
+                    if (sscanf(buffer + 6, "%31s", nombre) == 1) {
+                        strncpy(clients[i].username, nombre, MAX_USERNAME - 1);
+                        clients[i].username[MAX_USERNAME - 1] = '\0';
+                        clients[i].logged_in = true;
+                        send_to_client(sd, "OK LOGIN\n");
+                    } else {
+                        send_to_client(sd, "ERROR LOGIN Nombre inválido\n");
+                    }
+                } else if (strncmp(buffer, "LIST", 4) == 0) {
+                    char lista[BUFFER_SIZE];
+                    lista[0] = '\0';
+                    for (int j = 0; j < MAX_CLIENTS; j++) {
+                        if (clients[j].socket_fd != 0 && clients[j].logged_in) {
+                            if (lista[0] != '\0') {
+                                strncat(lista, ",", sizeof(lista) - strlen(lista) - 1);
+                            }
+                            strncat(lista, clients[j].username, sizeof(lista) - strlen(lista) - 1);
+                        }
+                    }
+                    char respuesta[BUFFER_SIZE];
+                    snprintf(respuesta, sizeof(respuesta), "OK LIST %s\n", lista);
+                    send_to_client(sd, respuesta);
+                } else if (strncmp(buffer, "LOGOUT", 6) == 0 || strncmp(buffer, "QUIT", 4) == 0) {
+                    send_to_client(sd, "OK QUIT\n");
+                    close(sd);
+                    clients[i].socket_fd = 0;
+                    clients[i].logged_in = false;
+                    clients[i].username[0] = '\0';
+                } else {
+                    send_to_client(sd, "ERROR Comando desconocido\n");
+                }
             }
         }
 

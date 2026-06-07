@@ -42,7 +42,7 @@ def mostrar_ayuda():
     print(
         """
 Comandos:
-  /banner                  mostrar banner banner
+  /banner                  mostrar banner
   /list                    ver quién está conectado
   /msg <destino> <texto>   mandar un mensaje privado
   /who <nombre>            info de un usuario
