@@ -45,12 +45,8 @@ Comandos:
   /banner                  mostrar banner
   /list                    ver quién está conectado
   /msg <destino> <texto>   mandar un mensaje privado
-<<<<<<< HEAD
-  /broadcast               Enviar mensaje a todos en la red
-=======
   /who <nombre>            info de un usuario
   /ping                    chequear la conexión
->>>>>>> c516b5d343e654ef14df7422265c317652a9b78d
   /help                    esta ayuda
   /quit                    salir
 """
