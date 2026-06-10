@@ -49,6 +49,7 @@ Comandos:
   /banner                  mostrar banner
   /list                    ver quién está conectado
   /msg <destino> <texto>   mandar un mensaje privado
+  /broadcast               Enviar mensaje a todos en la red
   /help                    esta ayuda
   /quit                    salir
 """
@@ -161,18 +162,30 @@ def manejar_entrada(s, texto):
         print(f"[DEBUG] Enviando {ruta} a {dest}")
         enviar_archivo(s, dest, ruta)
         return "red"
+    elif texto.startwith("/all"):
+        cuerpo = texto[len("/all ") :]
+        s.sendall(("ALL " + cuerpo + "\n").encode())
+        return "red"
+    elif texto.startwhit("/ping"):
+        cuerpo = texto[len("/ping ") :]
+        s.sendall(("PING""\n").encode())
+        return "red"
     print("Comando desconocido. Escribí /help para ver la lista.")
     return "local"
 
 
 # --------------PROGRAMA-------------------------
 # Conectar al server
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("[CLIENT] Conectando al servidor")
-s.connect((host, port))
+try:
+    s.connect((host, port))
+except OSError:
+    print("[ERROR] Server inalcanzable, ¿está online?")        
+    sys.exit(1) 
 print(f"[CLIENT] Conectado al servidor: {host}:{port}")
 
 # Login (handshake SINCRONO, antes de arrancar el hilo)
