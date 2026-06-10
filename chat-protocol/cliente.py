@@ -85,7 +85,6 @@ def manejar_entrada(s, texto):
     if texto == "/ping":
         s.sendall(b"PING\n")
         return "red"
-<<<<<<< HEAD
     elif texto.startwith("/all"):
         cuerpo = texto[len("/all ") :]
         s.sendall(("ALL " + cuerpo + "\n").encode())
@@ -94,40 +93,23 @@ def manejar_entrada(s, texto):
         cuerpo = texto[len("/ping ") :]
         s.sendall(("PING""\n").encode())
         return "red"
-=======
-
-    # TODO: /who <nombre>       -> WHO <nombre>
-    # TODO: /ping               -> PONG
-    # TODO: /file <dest> <ruta> -> (header FILE + bytes, lo vemos aparte)
-
->>>>>>> c516b5d343e654ef14df7422265c317652a9b78d
     print("Comando desconocido. Escribí /help para ver la lista.")
     return "local"
 
 
 # --------------PROGRAMA-------------------------
-<<<<<<< HEAD
-# Conectar al server
-host = "0.0.0.0"
-=======
 # Conectar al sv
 host = "127.0.0.1"
->>>>>>> c516b5d343e654ef14df7422265c317652a9b78d
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print("[CLIENT] Conectando al servidor")
-<<<<<<< HEAD
 try:
     s.connect((host, port))
 except OSError:
     print("[ERROR] Server inalcanzable, ¿está online?")        
     sys.exit(1) 
 print(f"[CLIENT] Conectado al servidor: {host}:{port}")
-=======
-s.connect((host, port))
-print(f"[CLIENT] Conectando al servidor: {host}:{port}")
->>>>>>> c516b5d343e654ef14df7422265c317652a9b78d
 
 # Login
 nombre = input("Quien sos?: ")
