@@ -14,12 +14,13 @@
 #define PORT 8888
 #define IP "0.0.0.0"
 #define MAX_CLIENTS 10
+#define MAX_USERNAME 32
 #define BUFFER_SIZE 1025
 
 
 
 Client clients[MAX_CLIENTS];
-int num_clients = 0;  // Cuántos clientes hay conectados ahora
+
 int max_sd, sd, activity, i, valread;
 
 // Socket File Descriptor
@@ -37,7 +38,7 @@ void signHandler(int signal) {
 
 // Buscar un cliente por su socket (id)
 Client* find_client_by_socket(int socket) {
-    for (int i = 0; i < num_clients; i++) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].socket_fd == socket) {
             return &clients[i];
         }
@@ -47,7 +48,7 @@ Client* find_client_by_socket(int socket) {
 
 // Buscar un cliente por su username
 Client* find_client_by_username(const char* username) {
-    for (int i = 0; i < num_clients; i++) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
         if (clients[i].logged_in && strcmp(clients[i].username, username) == 0) {
             return &clients[i];
         }
@@ -84,8 +85,17 @@ int main(int argc, char* argv[]) {
 
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    server_addr.sin_addr.s_addr = inet_addr(IP);
+
+    if (argc == 3) {
+        // use argument IP and PORT
+        server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+        server_addr.sin_port = htons((uint16_t) atoi(argv[2]));
+    }
+    else {
+        // use default IP and PORT
+        server_addr.sin_addr.s_addr = inet_addr(IP);
+        server_addr.sin_port = htons(PORT);
+    }
 
     if (bind(socketFileDescriptor, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind() falló");
@@ -171,6 +181,18 @@ int main(int argc, char* argv[]) {
                 buffer[bytes] = '\0';
                 printf("Cliente %d envió %d bytes: %s\n", sd, bytes, buffer);
 
+                // checkeq q el cliente este loggeado o intentando loggearse
+                if (!clients[i].logged_in &&
+                    strncmp(buffer, "LOGIN ", 6) != 0) {
+                    
+                    send_to_client(
+                        sd,
+                        "ERROR Debe hacer LOGIN primero\n"
+                    );
+                
+                    continue;
+                }
+
                 if (strncmp(buffer, "LOGIN ", 6) == 0) {
                     char nombre[MAX_USERNAME];
                     if (sscanf(buffer + 6, "%31s", nombre) == 1) {
@@ -195,7 +217,47 @@ int main(int argc, char* argv[]) {
                     char respuesta[BUFFER_SIZE];
                     snprintf(respuesta, sizeof(respuesta), "OK LIST %s\n", lista);
                     send_to_client(sd, respuesta);
+                } else if (strncmp(buffer, "MSG ", 4) == 0) {
+                    char destino[MAX_USERNAME];
+                    char mensaje[BUFFER_SIZE];
+
+                    if (sscanf(buffer + 4, "%31s %[^\n]", destino, mensaje) == 2) {
+                    
+                        Client* receptor = find_client_by_username(destino);
+                    
+                        if (receptor == NULL) {
+                            send_to_client(sd, "ERROR Usuario no encontrado\n");
+                        } else {
+                        
+                            char salida[BUFFER_SIZE];
+                        
+                            snprintf(
+                                salida,
+                                sizeof(salida),
+                                "MSG %s %s\n",
+                                clients[i].username,
+                                mensaje
+                            );
+                        
+                            send_to_client(
+                                receptor->socket_fd,
+                                salida
+                            );
+                        
+                            send_to_client(
+                                sd,
+                                "OK MSG\n"
+                            );
+                        }
+                    } else {
+                        send_to_client(
+                            sd,
+                            "ERROR Formato: MSG <destino> <mensaje>\n"
+                        );
+                    }
+                
                 } else if (strncmp(buffer, "QUIT", 4) == 0) {
+
                     send_to_client(sd, "OK QUIT\n");
                     close(sd);
                     clients[i].socket_fd = 0;
