@@ -100,6 +100,7 @@ def manejar_entrada(s, texto):
 # --------------PROGRAMA-------------------------
 # Conectar al sv
 host = "127.0.0.1"
+host = sys.argv[1] if len(sys.argv) > 1 else "192.168.1.50"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
