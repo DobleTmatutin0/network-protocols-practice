@@ -48,7 +48,6 @@ Comandos:
   /list                    ver quién está conectado
   /msg <destino> <texto>   mandar un mensaje privado
   /broadcast               Enviar mensaje a todos en la red
-  /who <nombre>            info de un usuario
   /ping                    chequear la conexión
   /help                    esta ayuda
   /quit                    salir
@@ -108,7 +107,17 @@ def recibir_mensajes(s):
                 break  # cierre normal por /quit
             print("\n[Error] El servidor cerró la conexión")
             os._exit(1)  # input() bloquea el hilo principal, salimos desde acá
-        print(f"\r[Chat] {datos.decode().strip()}\n>", end="", flush=True)
+
+        texto = datos.decode().strip()
+        if texto.startswith("MSG "):
+            partes = texto.split(" ", 2)
+            if len(partes) >= 3:
+                remitente = partes[1]
+                mensaje = partes[2]
+                print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
+                continue
+
+        print(f"\r[Chat] {texto}\n>", end="", flush=True)
 
 
 # --------------PROGRAMA-------------------------
