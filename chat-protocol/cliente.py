@@ -1,3 +1,4 @@
+from operator import contains
 import socket
 import sys
 import os
@@ -117,7 +118,8 @@ def recibir_mensajes(s):
                 print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
                 continue
 
-        print(f"\r[Chat] {texto}\n>", end="", flush=True)
+        if texto != ("OK MSG"):
+            print(f"\r[Chat] {texto}\n>", end="", flush=True)
 
 
 # --------------PROGRAMA-------------------------
