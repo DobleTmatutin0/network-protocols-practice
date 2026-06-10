@@ -71,6 +71,17 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    /* Permitir reutilizar la dirección/puerto inmediatamente después de cerrar */
+    int opt = 1;
+    if (setsockopt(socketFileDescriptor, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt() falló");
+        close(socketFileDescriptor);
+        exit(EXIT_FAILURE);
+    }
+
+    /* Registrar handler para Ctrl+C que cierre el socket correctamente */
+    signal(SIGINT, signHandler);
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
@@ -184,12 +195,14 @@ int main(int argc, char* argv[]) {
                     char respuesta[BUFFER_SIZE];
                     snprintf(respuesta, sizeof(respuesta), "OK LIST %s\n", lista);
                     send_to_client(sd, respuesta);
-                } else if (strncmp(buffer, "LOGOUT", 6) == 0 || strncmp(buffer, "QUIT", 4) == 0) {
+                } else if (strncmp(buffer, "QUIT", 4) == 0) {
                     send_to_client(sd, "OK QUIT\n");
                     close(sd);
                     clients[i].socket_fd = 0;
                     clients[i].logged_in = false;
                     clients[i].username[0] = '\0';
+                } else if (strncmp(buffer, "PING", 4) == 0) {
+                    send_to_client(sd, "PONG");
                 } else {
                     send_to_client(sd, "ERROR Comando desconocido\n");
                 }
