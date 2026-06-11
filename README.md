@@ -3,222 +3,285 @@
 ## 📋 Especificación del Protocolo
 
 ### Características
-- **Tipo**: Protocolo de aplicación sobre TCP
-- **Puerto**: 8888
-- **Formato**: Texto basado, mensajes terminados con `\n`
-- **Codificación**: UTF-8
-- **Característica**: Cliente-Servidor centralizado con chat bidireccional
+
+* **Tipo:** Protocolo de aplicación sobre TCP.
+* **Puerto por defecto:** 8888.
+* **Formato:** Mensajes de texto terminados en `\n`.
+* **Codificación:** UTF-8.
+* **Arquitectura:** Cliente-Servidor centralizado.
+* **Máximo de clientes simultáneos:** 10.
+
+---
+
+## 🔐 Autenticación
+
+Todo cliente debe autenticarse mediante el comando `LOGIN` antes de utilizar cualquier otro comando del protocolo.
+
+Si un cliente intenta ejecutar otro comando sin haberse autenticado, el servidor responderá:
+
+```text
+ERROR Debe hacer LOGIN primero
+```
 
 ---
 
 ## 🔌 Conexión Inicial
 
-```
-Cliente → TCP connect a localhost:8888
+```text
+Cliente → TCP connect
         ↓
 Servidor → acepta conexión
         ↓
-Cliente → envía LOGIN
+Cliente → LOGIN <usuario>
+        ↓
+Servidor → OK
 ```
 
 ---
 
 ## 📨 Comandos del Protocolo
 
-### 1️⃣ LOGIN - Autenticación
+### 1️⃣ LOGIN
 
-**Petición:**
-```
+Permite registrar un nombre de usuario en el servidor.
+
+#### Petición
+
+```text
 LOGIN <nombre_usuario>\n
 ```
 
-**Respuesta exitosa:**
-```
-OK LOGIN <id_usuario>\n
+#### Respuesta exitosa
+
+```text
+OK\n
 ```
 
-**Respuesta error:**
-```
-ERROR LOGIN Usuario ya existe\n
-ERROR LOGIN Nombre vacío\n
+#### Respuesta de error
+
+```text
+ERROR LOGIN Nombre inválido\n
 ```
 
-**Ejemplo:**
-```
+#### Ejemplo
+
+```text
 C → LOGIN alice
-S → OK LOGIN 1
+S → OK
 ```
 
 ---
 
-### 2️⃣ LIST - Listar usuarios conectados
+### 2️⃣ LIST
 
-**Petición:**
-```
+Solicita la lista de usuarios conectados.
+
+#### Petición
+
+```text
 LIST\n
 ```
 
-**Respuesta:**
-```
-OK LIST <usuario1>,<usuario2>,...\n
+#### Respuesta
+
+```text
+Usuarios conectados: alice,bob,charlie\n
 ```
 
-**Ejemplo:**
-```
+#### Ejemplo
+
+```text
 C → LIST
-S → OK LIST alice,bob,charlie
+S → Usuarios conectados: alice,bob,charlie
 ```
 
 ---
 
-### 3️⃣ SEND - Enviar mensaje a otro usuario
+### 3️⃣ MSG
 
-**Petición:**
-```
-SEND <destinatario> <mensaje>\n
-```
+Envía un mensaje privado a otro usuario conectado.
 
-**Respuesta (confirmación al remitente):**
-```
-OK SEND\n
+#### Petición
+
+```text
+MSG <destinatario> <mensaje>\n
 ```
 
-**Mensaje recibido (en el cliente destinatario):**
-```
-MSG <remitente> <timestamp> <mensaje>\n
+#### Confirmación al remitente
+
+```text
+OK MSG\n
 ```
 
-**Ejemplo:**
-```
-C1 → SEND bob Hola, ¿cómo estás?
-S  → OK SEND (a C1)
-S  → MSG alice 12:34:56 Hola, ¿cómo estás? (a bob)
+#### Mensaje recibido por el destinatario
+
+```text
+MSG <remitente> <mensaje>\n
 ```
 
-**Errores:**
-```
-ERROR SEND Usuario no existe
-ERROR SEND Usuario no conectado
-ERROR SEND Mensaje vacío
+#### Ejemplo
+
+```text
+C1 → MSG bob Hola Bob
+S  → OK MSG
+
+S  → MSG alice Hola Bob
 ```
 
----
+#### Errores
 
-### 4️⃣ SENDFILE - Transferencia de archivos
-
-**Petición:**
-```
-SENDFILE <destinatario> <nombre_archivo> <tamaño_bytes>\n
-<contenido_archivo_binario>\n
-```
-
-**Respuesta (confirmación al remitente):**
-```
-OK SENDFILE\n
-```
-
-**Notificación al destinatario:**
-```
-FILE <remitente> <nombre_archivo> <tamaño_bytes>\n
-<contenido_archivo_binario>\n
-```
-
-**Ejemplo:**
-```
-C1 → SENDFILE bob documento.txt 1234
-C1 → [1234 bytes de contenido]
-S  → OK SENDFILE (a C1)
-S  → FILE alice documento.txt 1234 (a bob)
-S  → [1234 bytes de contenido] (a bob)
-```
-
-**Errores:**
-```
-ERROR SENDFILE Usuario no existe
-ERROR SENDFILE Archivo no encontrado
-ERROR SENDFILE Tamaño muy grande
+```text
+ERROR Usuario no encontrado\n
+ERROR Formato: MSG <destino> <mensaje>\n
 ```
 
 ---
 
-### 5️⃣ QUIT - Desconexión
+### 4️⃣ ALL
 
-**Petición:**
+Envía un mensaje a todos los usuarios conectados excepto al remitente.
+
+#### Petición
+
+```text
+ALL <mensaje>\n
 ```
+
+#### Confirmación
+
+```text
+OK ALL\n
+```
+
+#### Mensaje recibido por los demás usuarios
+
+```text
+MSG <remitente> <mensaje>\n
+```
+
+#### Ejemplo
+
+```text
+C1 → ALL Hola a todos
+S  → OK ALL
+
+C2 ← MSG alice Hola a todos
+C3 ← MSG alice Hola a todos
+```
+
+---
+
+### 5️⃣ PING
+
+Permite verificar que la conexión sigue activa.
+
+#### Petición
+
+```text
+PING\n
+```
+
+#### Respuesta
+
+```text
+PONG
+```
+
+#### Ejemplo
+
+```text
+C → PING
+S → PONG
+```
+
+---
+
+### 6️⃣ QUIT
+
+Finaliza la sesión y cierra la conexión.
+
+#### Petición
+
+```text
 QUIT\n
 ```
 
-**Respuesta:**
-```
+#### Respuesta
+
+```text
 OK QUIT\n
 ```
 
 Luego el servidor cierra la conexión.
 
+#### Ejemplo
+
+```text
+C → QUIT
+S → OK QUIT
+```
+
 ---
 
-## 🚨 Mensajes de Error Globales
+## 🚨 Errores Globales
 
-Cualquier comando inválido:
+### Cliente no autenticado
+
+```text
+ERROR Debe hacer LOGIN primero
 ```
+
+### Comando desconocido
+
+```text
 ERROR Comando desconocido
-```
-
-Sin autenticación previa:
-```
-ERROR Debes hacer LOGIN primero
 ```
 
 ---
 
 ## 🔄 Flujo de una Sesión Típica
 
-```
-┌─────────────────────────────────────────┐
-│ 1. Cliente se conecta (TCP)             │
-├─────────────────────────────────────────┤
-│ 2. Envía: LOGIN alice                   │
-│    Recibe: OK LOGIN 1                   │
-├─────────────────────────────────────────┤
-│ 3. Envía: LIST                          │
-│    Recibe: OK LIST bob,charlie          │
-├─────────────────────────────────────────┤
-│ 4. Envía: SEND bob Hola!                │
-│    Recibe: OK SEND                      │
-├─────────────────────────────────────────┤
-│ 5. Recibe: MSG bob 12:34:56 Hola tú!    │
-├─────────────────────────────────────────┤
-│ 6. Envía: SENDFILE bob archivo.txt 500  │
-│    Envía: [500 bytes]                   │
-│    Recibe: OK SENDFILE                  │
-├─────────────────────────────────────────┤
-│ 7. Envía: QUIT                          │
-│    Recibe: OK QUIT                      │
-│    Conexión cierra                      │
-└─────────────────────────────────────────┘
+```text
+┌───────────────────────────────────────┐
+│ Cliente se conecta por TCP            │
+├───────────────────────────────────────┤
+│ LOGIN alice                           │
+│ OK                                    │
+├───────────────────────────────────────┤
+│ LIST                                  │
+│ Usuarios conectados: bob,charlie      │
+├───────────────────────────────────────┤
+│ MSG bob Hola Bob                      │
+│ OK MSG                                │
+├───────────────────────────────────────┤
+│ ALL Hola a todos                      │
+│ OK ALL                                │
+├───────────────────────────────────────┤
+│ PING                                  │
+│ PONG                                  │
+├───────────────────────────────────────┤
+│ QUIT                                  │
+│ OK QUIT                               │
+└───────────────────────────────────────┘
 ```
 
 ---
 
 ## 💾 Limitaciones
 
-- Máximo 10 clientes simultáneos
-- Máximo 50 caracteres de nombre de usuario
-- Máximo 1000 caracteres por mensaje
-- Máximo 5 MB por archivo
-- Máximo 5 archivos en cola de espera
+* Máximo 10 clientes simultáneos.
+* Máximo 31 caracteres para nombres de usuario (`MAX_USERNAME = 32`, incluyendo `\0`).
+* Tamaño máximo de mensaje limitado por `BUFFER_SIZE`.
+* Comunicación basada en texto plano sobre TCP.
 
 ---
 
 ## 📁 Estructura del Repositorio
 
-```
-/
-├── README.md              (este archivo - especificación)
-├── cliente.py             (cliente en Python)
-├── chat-protocol/
-│   └── chat-sv.c         (servidor en C)
-└── trivial-file-transfer-protocol-TFTP/
-    ├── tftp-client.c
-    └── tftp-server.c
+```text
+chat-protocol/
+├── README.md
+├── cliente.py
+├── client.h
+└── chat-sv.c
 ```
