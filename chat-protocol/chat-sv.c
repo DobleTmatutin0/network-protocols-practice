@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
                         strncpy(clients[i].username, nombre, MAX_USERNAME - 1);
                         clients[i].username[MAX_USERNAME - 1] = '\0';
                         clients[i].logged_in = true;
-                        send_to_client(sd, "OK LOGIN\n");
+                        send_to_client(sd, "OK\n");
                     } else {
                         send_to_client(sd, "ERROR LOGIN Nombre inválido\n");
                     }
@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     char respuesta[BUFFER_SIZE];
-                    snprintf(respuesta, sizeof(respuesta), "OK LIST %s\n", lista);
+                    snprintf(respuesta, sizeof(respuesta), "Usuarios conectados: %s\n", lista);
                     send_to_client(sd, respuesta);
                 } else if (strncmp(buffer, "MSG ", 4) == 0) {
                     char destino[MAX_USERNAME];

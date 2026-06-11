@@ -45,13 +45,14 @@ def mostrar_ayuda():
     print(
         """
 Comandos:
-  /banner                  mostrar banner
-  /list                    ver quién está conectado
-  /msg <destino> <texto>   mandar un mensaje privado
-  /broadcast               Enviar mensaje a todos en la red
-  /ping                    chequear la conexión
-  /help                    esta ayuda
-  /quit                    salir
+  /banner                  Mostrar banner
+  /list                    Ver quién está conectado
+  /msg <destino> <texto>   Mandar un mensaje privado
+  /all                     Enviar mensaje a todos en la red
+  /file <destino> <ruta>   Enviar un archivo
+  /ping                    Chequear la conexión
+  /help                    Muestra todos los comandos disponibles
+  /quit                    Salir
 """
     )
 
@@ -137,16 +138,16 @@ except OSError:
 print(f"[CLIENT] Conectado al servidor: {host}:{port}")
 
 # Login
-nombre = input("Quien sos?: ")
+nombre = input("[Login] Quien sos?: ")
 s.sendall(("LOGIN " + nombre + "\n").encode())
-print(f"[Login] Login enviado: {nombre} a {host}:{port}")
+print(f"[Login] Login enviado: [{nombre}] a [{host}:{port}]")
 respuesta = s.recv(1024).decode()
 print(f"[Login] Respuesta del servidor: {respuesta}")
 if respuesta.startswith("OK"):
-    print(f"[Login] entraste al chat: {nombre}", respuesta)
+    print(f"[Login] Entraste al chat como: {nombre}")
     s.sendall(("LIST\n").encode())
     respuesta = s.recv(1024).decode()
-    print(f"[CLIENT] Respuesta del servidor: {respuesta}")
+    print(f"{respuesta}")
 else:
     print("[Error] Error en el login", respuesta)
     s.close()
