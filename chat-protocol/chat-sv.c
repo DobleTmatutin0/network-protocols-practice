@@ -265,7 +265,7 @@ int main(int argc, char* argv[]) {
                     clients[i].username[0] = '\0';
                 } else if (strncmp(buffer, "PING", 4) == 0) {
                     send_to_client(sd, "PONG");
-                } else if (strncmp(buffer, "ALL", 4) == 0) {
+                } else if (strncmp(buffer, "ALL ", 4) == 0) {
                     char mensaje[BUFFER_SIZE];
                     snprintf(mensaje, sizeof(mensaje), "MSG %s %s\n",
                             clients[i].username, buffer + 4);
