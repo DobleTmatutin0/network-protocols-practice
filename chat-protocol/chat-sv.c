@@ -199,7 +199,7 @@ int main(int argc, char* argv[]) {
                         strncpy(clients[i].username, nombre, MAX_USERNAME - 1);
                         clients[i].username[MAX_USERNAME - 1] = '\0';
                         clients[i].logged_in = true;
-                        send_to_client(sd, "OK LOGIN\n");
+                        send_to_client(sd, "OK\n");
                     } else {
                         send_to_client(sd, "ERROR LOGIN Nombre inválido\n");
                     }
@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
                         }
                     }
                     char respuesta[BUFFER_SIZE];
-                    snprintf(respuesta, sizeof(respuesta), "OK LIST %s\n", lista);
+                    snprintf(respuesta, sizeof(respuesta), "Usuarios conectados: %s\n", lista);
                     send_to_client(sd, respuesta);
                 } else if (strncmp(buffer, "MSG ", 4) == 0) {
                     char destino[MAX_USERNAME];
@@ -265,6 +265,20 @@ int main(int argc, char* argv[]) {
                     clients[i].username[0] = '\0';
                 } else if (strncmp(buffer, "PING", 4) == 0) {
                     send_to_client(sd, "PONG");
+                } else if (strncmp(buffer, "ALL ", 4) == 0) {
+                    char mensaje[BUFFER_SIZE];
+                    snprintf(mensaje, sizeof(mensaje), "MSG %s %s\n",
+                            clients[i].username, buffer + 4);
+
+                    for (int j = 0; j < MAX_CLIENTS; j++) {
+                        if (clients[j].socket_fd != 0 &&
+                            clients[j].logged_in &&
+                            clients[j].socket_fd != sd) {
+                            send_to_client(clients[j].socket_fd, mensaje);
+                        }
+                    }
+
+                    send_to_client(sd, "OK ALL\n");
                 } else {
                     send_to_client(sd, "ERROR Comando desconocido\n");
                 }

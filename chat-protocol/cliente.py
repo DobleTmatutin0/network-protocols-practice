@@ -1,5 +1,8 @@
+from operator import contains
 import socket
 import sys
+import os
+import threading
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -42,14 +45,14 @@ def mostrar_ayuda():
     print(
         """
 Comandos:
-  /banner                  mostrar banner
-  /list                    ver quién está conectado
-  /msg <destino> <texto>   mandar un mensaje privado
-  /broadcast               Enviar mensaje a todos en la red
-  /who <nombre>            info de un usuario
-  /ping                    chequear la conexión
-  /help                    esta ayuda
-  /quit                    salir
+  /banner                  Mostrar banner
+  /list                    Ver quién está conectado
+  /msg <destino> <texto>   Mandar un mensaje privado
+  /all                     Enviar mensaje a todos en la red
+  /file <destino> <ruta>   Enviar un archivo
+  /ping                    Chequear la conexión
+  /help                    Muestra todos los comandos disponibles
+  /quit                    Salir
 """
     )
 
@@ -66,6 +69,7 @@ def manejar_entrada(s, texto):
         mostrar_ayuda()
         return "local"
     if texto == "/quit":
+        detener.set()  # así el hilo receptor no lo toma como caída del server
         s.sendall(b"QUIT\n")  # le avisamos al server antes de irnos
         return "salir"
 
@@ -82,21 +86,46 @@ def manejar_entrada(s, texto):
     if texto == "/ping":
         s.sendall(b"PING\n")
         return "red"
-    elif texto.startwith("/all"):
+    elif texto.startswith("/all "):
         cuerpo = texto[len("/all ") :]
         s.sendall(("ALL " + cuerpo + "\n").encode())
-        return "red"
-    elif texto.startwhit("/ping"):
-        cuerpo = texto[len("/ping ") :]
-        s.sendall(("PING""\n").encode())
         return "red"
     print("Comando desconocido. Escribí /help para ver la lista.")
     return "local"
 
 
+# Hilo receptor: lee del socket todo el tiempo, para que los mensajes
+# aparezcan apenas llegan y no recién cuando nosotros mandamos algo
+detener = threading.Event()
+
+def recibir_mensajes(s):
+    while True:
+        try:
+            datos = s.recv(1024)
+        except OSError:
+            break  # el hilo principal cerró el socket
+        if not datos:
+            if detener.is_set():
+                break  # cierre normal por /quit
+            print("\n[Error] El servidor cerró la conexión")
+            os._exit(1)  # input() bloquea el hilo principal, salimos desde acá
+
+        texto = datos.decode().strip()
+        if texto.startswith("MSG "):
+            partes = texto.split(" ", 2)
+            if len(partes) >= 3:
+                remitente = partes[1]
+                mensaje = partes[2]
+                print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
+                continue
+
+        if texto != ("OK MSG"):
+            print(f"\r[Chat] {texto}\n>", end="", flush=True)
+
+
 # --------------PROGRAMA-------------------------
 # Conectar al sv
-host = "127.0.0.1"
+host = sys.argv[1] if len(sys.argv) > 1 else "138.36.99.9"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -109,22 +138,26 @@ except OSError:
 print(f"[CLIENT] Conectado al servidor: {host}:{port}")
 
 # Login
-nombre = input("Quien sos?: ")
+nombre = input("[Login] Quien sos?: ")
 s.sendall(("LOGIN " + nombre + "\n").encode())
-print(f"[Login] Login enviado: {nombre} a {host}:{port}")
+print(f"[Login] Login enviado: [{nombre}] a [{host}:{port}]")
 respuesta = s.recv(1024).decode()
 print(f"[Login] Respuesta del servidor: {respuesta}")
 if respuesta.startswith("OK"):
-    print(f"[Login] entraste al chat: {nombre}", respuesta)
+    print(f"[Login] Entraste al chat como: {nombre}")
     s.sendall(("LIST\n").encode())
     respuesta = s.recv(1024).decode()
-    print(f"[CLIENT] Respuesta del servidor: {respuesta}")
+    print(f"{respuesta}")
 else:
     print("[Error] Error en el login", respuesta)
     s.close()
     sys.exit()
 
-# Loop
+# A partir de acá el socket lo lee solo el hilo receptor
+hilo_receptor = threading.Thread(target=recibir_mensajes, args=(s,), daemon=True)
+hilo_receptor.start()
+
+# Loop: este hilo solo lee teclado y manda
 while True:
     texto = input(">")
     estado = manejar_entrada(s, texto)
@@ -132,14 +165,8 @@ while True:
     if estado == "salir":
         break
 
-    if estado == "red":
-        respuesta = s.recv(1024).decode()
-        if not respuesta:
-            print("[Error] Error de conexion")
-            break
-        print(f"[Chat] Recibido: {respuesta}")
-
 
 # Cerrar la conexión
+detener.set()
 s.close()
 print("[CLIENT] Conexión cerrada")
