@@ -38,8 +38,10 @@ BANNER = """
 """
 print(BANNER)
 
+
 def mostrar_banner():
     print(BANNER)
+
 
 def mostrar_ayuda():
     print(
@@ -56,6 +58,33 @@ Comandos:
 """
     )
 
+
+def enviar_archivo(s, destino, ruta):
+    if not os.path.isfile(ruta):
+        print(f"Error: El archivo {ruta} no existe")
+        return
+    tam = os.path.getsize(ruta)
+    nombre = os.path.basename(ruta).replace(" ", "_")
+    ok_file.clear()
+    s.sendall((f"FILE {destino} {nombre} {tam}\n").encode())
+    # El server manda OK FILE para confirmar que puede
+    if not ok_file.wait(timeout=5):
+        print("[File] El servidor no confirmó la transferencia. Envío cancelado.")
+        return
+
+    # enviar bytes
+    enviados = 0
+    with open(ruta, "rb") as f:
+        while True:
+            datos = f.read(CHUNK)
+            if not datos:
+                break
+            s.sendall(datos)
+            enviados += len(datos)
+
+    print(f"[File] Enviado: {nombre} ({enviados} bytes) -> {destino}")
+
+
 def manejar_entrada(s, texto):
     texto = texto.strip()
     if not texto:
@@ -63,7 +92,7 @@ def manejar_entrada(s, texto):
     if texto == "/banner":
         mostrar_banner()
         return "local"
-    
+
     # --- comandos LOCALES (no van al server) ---
     if texto == "/help":
         mostrar_ayuda()
@@ -81,14 +110,21 @@ def manejar_entrada(s, texto):
         cuerpo = texto[len("/msg ") :]  # "ana hola" -> "MSG ana hola"
         s.sendall(("MSG " + cuerpo + "\n").encode())
         return "red"
-    
+
         # --- comandos de RED (se traducen al protocolo y se mandan) ---
     if texto == "/ping":
         s.sendall(b"PING\n")
         return "red"
-    elif texto.startswith("/all "):
+    if texto.startswith("/all "):
         cuerpo = texto[len("/all ") :]
         s.sendall(("ALL " + cuerpo + "\n").encode())
+        return "red"
+    if texto.startswith("/file "):
+        partes = texto.split(" ", 2)
+        if len(partes) < 3:
+            print("[File] Uso: /file <destino> <ruta>")
+            return "local"
+        enviar_archivo(s, partes[1], partes[2])
         return "red"
     print("Comando desconocido. Escribí /help para ver la lista.")
     return "local"
@@ -98,10 +134,43 @@ def manejar_entrada(s, texto):
 # aparezcan apenas llegan y no recién cuando nosotros mandamos algo
 detener = threading.Event()
 
+
+def recibir_exactos(s, buffer, cantidad):
+    """
+    Recibe exactamente cantidad de bytes del socket s en el buffer buffer
+    Devuelve (datos, resto_del_buffer)
+    """
+    while len(buffer) < cantidad:
+        datos = s.recv(CHUNK)
+        if not datos:
+            raise ConnectionError("El servidor cerró la conexión")
+        buffer += datos
+    return buffer[:cantidad], buffer[cantidad:]
+
+
+def procesar_linea(texto):
+    if texto.startswith("MSG "):
+        partes = texto.split(" ", 2)
+        if len(partes) >= 3:
+            remitente, mensaje = partes[1], partes[2]
+            print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
+            return
+
+    if texto == "OK FILE":
+        ok_file.set()  # despierta a enviar_archivo() que está esperando
+        return
+
+    if texto == "OK MSG" or texto == "OK ALL":
+        return  
+
+    print(f"\r[Chat] {texto}\n>", end="", flush=True)
+
+
 def recibir_mensajes(s):
+    buffer = b""
     while True:
         try:
-            datos = s.recv(1024)
+            datos = s.recv(CHUNK)
         except OSError:
             break  # el hilo principal cerró el socket
         if not datos:
@@ -110,17 +179,38 @@ def recibir_mensajes(s):
             print("\n[Error] El servidor cerró la conexión")
             os._exit(1)  # input() bloquea el hilo principal, salimos desde acá
 
-        texto = datos.decode().strip()
-        if texto.startswith("MSG "):
-            partes = texto.split(" ", 2)
-            if len(partes) >= 3:
-                remitente = partes[1]
-                mensaje = partes[2]
-                print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
+        buffer += datos
+        while b"\n" in buffer:
+            linea, buffer = buffer.split(b"\n", 1)
+
+            try:
+                linea = linea.decode()
+            except UnicodeDecodeError:
+                print(r"[Error] Error al decodificar línea: {linea}")
                 continue
 
-        if texto != ("OK MSG"):
-            print(f"\r[Chat] {texto}\n>", end="", flush=True)
+            if linea.startswith("FILE"):
+                partes = linea.split(" ")
+                if len(partes) != 4 or not partes[3].isdigit():
+                    print(rf"[Error] Header invalido {linea}")
+                    continue
+                remitente, nombre, tam = partes[1], partes[2], int(partes[3])
+                print(rf"[File] {remitente} mandando {nombre} ({tam} bytes)")
+
+                try:
+                    datos_archivo, buffer = recibir_exactos(s, buffer, tam)
+                except ConnectionError:
+                    print(f"[Error] {e}")
+                    os._exit(1)  # input() bloquea el hilo principal, salimos desde acá
+
+                destino_local = "recibido_" + os.path.basename(nombre)
+                with open(destino_local, "wb") as f:
+                    f.write(datos_archivo)
+
+                print(f"[File] Guardado como: {destino_local}\n>", end="", flush=True)
+                continue
+
+            procesar_linea(linea)
 
 
 # --------------PROGRAMA-------------------------
@@ -133,8 +223,8 @@ print("[CLIENT] Conectando al servidor")
 try:
     s.connect((host, port))
 except OSError:
-    print("[ERROR] Server inalcanzable, ¿está online?")        
-    sys.exit(1) 
+    print("[ERROR] Server inalcanzable, ¿está online?")
+    sys.exit(1)
 print(f"[CLIENT] Conectado al servidor: {host}:{port}")
 
 # Login
