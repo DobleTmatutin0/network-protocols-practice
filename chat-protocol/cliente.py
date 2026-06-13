@@ -221,8 +221,8 @@ def recibir_mensajes(s):
 
 # --------------PROGRAMA-------------------------
 # Conectar al sv
-# host = sys.argv[1] if len(sys.argv) > 1 else "138.36.99.9"
-host = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
+host = sys.argv[1] if len(sys.argv) > 1 else "138.36.99.9"
+# host = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
