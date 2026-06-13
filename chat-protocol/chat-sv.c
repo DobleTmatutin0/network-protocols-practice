@@ -263,8 +263,39 @@ int main(int argc, char* argv[]) {
                     clients[i].socket_fd = 0;
                     clients[i].logged_in = false;
                     clients[i].username[0] = '\0';
+                } else if (strncmp(buffer, "FILE ", 5) == 0) {
+                    char destino[MAX_USERNAME];
+                    char nombre[BUFFER_SIZE];
+                    int tam;
+                    if (sscanf(buffer + 5, "%31s %1024s %d", destino, nombre, &tam) == 3) {
+                        Client* receptor = find_client_by_username(destino);
+                        if (receptor == NULL) {
+                            send_to_client(sd, "ERROR Usuario no encontrado\n");
+                        } else {
+                            send_to_client(sd, "OK FILE\n");
+
+                            char header[BUFFER_SIZE];
+                            snprintf(header, sizeof(header), "FILE %s %s %d\n",
+                                    clients[i].username, nombre, tam);
+                            send_to_client(receptor->socket_fd, header);
+
+                            int remaining = tam;
+                            char filebuf[1024];
+                            while (remaining > 0) {
+                                int n = recv(sd, filebuf, remaining < sizeof(filebuf) ? remaining : sizeof(filebuf), 0);
+                                if (n <= 0) { 
+                                    send_to_client(sd, "ERROR FILE\n"); 
+                                    break; 
+                                }
+                                send(receptor->socket_fd, filebuf, n, 0);
+                                remaining -= n;
+                            }
+                        }
+                    } else {
+                        send_to_client(sd, "ERROR Formato: FILE <destino> <nombre> <tam>\n");
+                    }
                 } else if (strncmp(buffer, "PING", 4) == 0) {
-                    send_to_client(sd, "PONG");
+                    send_to_client(sd, "PONG\n");
                 } else if (strncmp(buffer, "ALL ", 4) == 0) {
                     char mensaje[BUFFER_SIZE];
                     snprintf(mensaje, sizeof(mensaje), "MSG %s %s\n",

@@ -1,10 +1,12 @@
-from operator import contains
 import socket
 import sys
 import os
 import threading
 
 sys.stdout.reconfigure(encoding="utf-8")
+
+CHUNK = 1024
+ok_file = threading.Event()
 
 BANNER = """
 
@@ -149,6 +151,10 @@ def recibir_exactos(s, buffer, cantidad):
 
 
 def procesar_linea(texto):
+    texto = texto.strip()
+    if not texto:
+        return
+
     if texto.startswith("MSG "):
         partes = texto.split(" ", 2)
         if len(partes) >= 3:
@@ -161,9 +167,9 @@ def procesar_linea(texto):
         return
 
     if texto == "OK MSG" or texto == "OK ALL":
-        return  
+        return
 
-    print(f"\r[Chat] {texto}\n>", end="", flush=True)
+    print(f"\r{texto}\n>", end="", flush=True)
 
 
 def recibir_mensajes(s):
@@ -199,7 +205,7 @@ def recibir_mensajes(s):
 
                 try:
                     datos_archivo, buffer = recibir_exactos(s, buffer, tam)
-                except ConnectionError:
+                except ConnectionError as e:
                     print(f"[Error] {e}")
                     os._exit(1)  # input() bloquea el hilo principal, salimos desde acá
 
@@ -215,7 +221,8 @@ def recibir_mensajes(s):
 
 # --------------PROGRAMA-------------------------
 # Conectar al sv
-host = sys.argv[1] if len(sys.argv) > 1 else "138.36.99.9"
+# host = sys.argv[1] if len(sys.argv) > 1 else "138.36.99.9"
+host = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
 port = 8888
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
