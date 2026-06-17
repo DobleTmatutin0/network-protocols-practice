@@ -1,6 +1,6 @@
 # Chat Protocol - TP4
 
-## 📋 Especificación del Protocolo
+##  Especificación del Protocolo
 
 ### Características
 
@@ -13,7 +13,7 @@
 
 ---
 
-## 🔌 Conexión Inicial
+##  Conexión Inicial
 
 Al conectarse al servidor, el cliente debe autenticarse mediante el comando `LOGIN`.
 
@@ -32,9 +32,9 @@ ERROR Debe hacer LOGIN primero
 
 ---
 
-## 📨 Comandos del Protocolo
+##  Comandos del Protocolo
 
-### 1️⃣ LOGIN
+###  LOGIN
 
 Permite registrar un nombre de usuario para la sesión.
 
@@ -65,7 +65,7 @@ S → OK
 
 ---
 
-### 2️⃣ LIST
+###  LIST
 
 Obtiene la lista de usuarios conectados.
 
@@ -90,7 +90,7 @@ S → Usuarios conectados: mirta,gaspar,carlos
 
 ---
 
-### 3️⃣ MSG
+###  MSG
 
 Envía un mensaje privado a otro usuario.
 
@@ -130,7 +130,7 @@ ERROR Formato: MSG <destino> <mensaje>
 
 ---
 
-### 4️⃣ ALL
+###  ALL
 
 Envía un mensaje a todos los usuarios conectados excepto al remitente.
 
@@ -165,7 +165,7 @@ MSG mirta Hola a todos
 
 ---
 
-### 5️⃣ FILE
+###  FILE
 
 Permite transferir archivos entre usuarios.
 
@@ -214,7 +214,7 @@ ERROR FILE
 
 ---
 
-### 6️⃣ PING
+###  PING
 
 Permite verificar conectividad con el servidor.
 
@@ -239,7 +239,7 @@ S → PONG
 
 ---
 
-### 7️⃣ QUIT
+###  QUIT
 
 Finaliza la sesión.
 
@@ -275,7 +275,7 @@ ERROR Debe hacer LOGIN primero
 
 ---
 
-## 🔄 Flujo de una Sesión Típica
+##  Flujo de una Sesión Típica
 
 ```
 1. Cliente conecta por TCP
@@ -305,7 +305,7 @@ ERROR Debe hacer LOGIN primero
 
 ---
 
-## 💾 Limitaciones
+##  Limitaciones
 
 * Máximo 10 clientes simultáneos.
 * Longitud máxima de nombre de usuario: 31 caracteres.
@@ -314,7 +314,7 @@ ERROR Debe hacer LOGIN primero
 
 ---
 
-## 📁 Estructura del Repositorio
+##  Estructura del Repositorio
 
 ```
 chat-protocol/
