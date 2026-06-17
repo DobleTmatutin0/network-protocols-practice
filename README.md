@@ -6,35 +6,28 @@
 
 * **Tipo:** Protocolo de aplicación sobre TCP.
 * **Puerto por defecto:** 8888.
-* **Formato:** Mensajes de texto terminados en `\n`.
+* **Formato:** Texto basado en líneas terminadas con `\n`.
 * **Codificación:** UTF-8.
 * **Arquitectura:** Cliente-Servidor centralizado.
-* **Máximo de clientes simultáneos:** 10.
-
----
-
-## 🔐 Autenticación
-
-Todo cliente debe autenticarse mediante el comando `LOGIN` antes de utilizar cualquier otro comando del protocolo.
-
-Si un cliente intenta ejecutar otro comando sin haberse autenticado, el servidor responderá:
-
-```text
-ERROR Debe hacer LOGIN primero
-```
+* **Mensajería:** Privada, broadcast y transferencia de archivos.
 
 ---
 
 ## 🔌 Conexión Inicial
 
-```text
+Al conectarse al servidor, el cliente debe autenticarse mediante el comando `LOGIN`.
+
+```
 Cliente → TCP connect
-        ↓
 Servidor → acepta conexión
-        ↓
 Cliente → LOGIN <usuario>
-        ↓
 Servidor → OK
+```
+
+Cualquier comando enviado antes del login será rechazado:
+
+```
+ERROR Debe hacer LOGIN primero
 ```
 
 ---
@@ -43,30 +36,30 @@ Servidor → OK
 
 ### 1️⃣ LOGIN
 
-Permite registrar un nombre de usuario en el servidor.
+Permite registrar un nombre de usuario para la sesión.
 
-#### Petición
+**Petición**
 
-```text
+```
 LOGIN <nombre_usuario>\n
 ```
 
-#### Respuesta exitosa
+**Respuesta exitosa**
 
-```text
-OK\n
+```
+OK
 ```
 
-#### Respuesta de error
+**Respuesta de error**
 
-```text
-ERROR LOGIN Nombre inválido\n
+```
+ERROR LOGIN Nombre inválido
 ```
 
-#### Ejemplo
+**Ejemplo**
 
-```text
-C → LOGIN alice
+```
+C → LOGIN mirta
 S → OK
 ```
 
@@ -74,65 +67,65 @@ S → OK
 
 ### 2️⃣ LIST
 
-Solicita la lista de usuarios conectados.
+Obtiene la lista de usuarios conectados.
 
-#### Petición
+**Petición**
 
-```text
+```
 LIST\n
 ```
 
-#### Respuesta
+**Respuesta**
 
-```text
-Usuarios conectados: alice,bob,charlie\n
+```
+Usuarios conectados: mirta,gaspar,carlos
 ```
 
-#### Ejemplo
+**Ejemplo**
 
-```text
+```
 C → LIST
-S → Usuarios conectados: alice,bob,charlie
+S → Usuarios conectados: mirta,gaspar,carlos
 ```
 
 ---
 
 ### 3️⃣ MSG
 
-Envía un mensaje privado a otro usuario conectado.
+Envía un mensaje privado a otro usuario.
 
-#### Petición
+**Petición**
 
-```text
+```
 MSG <destinatario> <mensaje>\n
 ```
 
-#### Confirmación al remitente
+**Confirmación al remitente**
 
-```text
-OK MSG\n
+```
+OK MSG
 ```
 
-#### Mensaje recibido por el destinatario
+**Mensaje recibido por el destinatario**
 
-```text
-MSG <remitente> <mensaje>\n
+```
+MSG <remitente> <mensaje>
 ```
 
-#### Ejemplo
+**Ejemplo**
 
-```text
-C1 → MSG bob Hola Bob
+```
+C1 → MSG gaspar Hola gaspar
 S  → OK MSG
 
-S  → MSG alice Hola Bob
+S  → MSG mirta Hola gaspar
 ```
 
-#### Errores
+**Errores**
 
-```text
-ERROR Usuario no encontrado\n
-ERROR Formato: MSG <destino> <mensaje>\n
+```
+ERROR Usuario no encontrado
+ERROR Formato: MSG <destino> <mensaje>
 ```
 
 ---
@@ -141,128 +134,173 @@ ERROR Formato: MSG <destino> <mensaje>\n
 
 Envía un mensaje a todos los usuarios conectados excepto al remitente.
 
-#### Petición
+**Petición**
 
-```text
+```
 ALL <mensaje>\n
 ```
 
-#### Confirmación
+**Confirmación**
 
-```text
-OK ALL\n
+```
+OK ALL
 ```
 
-#### Mensaje recibido por los demás usuarios
+**Mensaje recibido por los demás clientes**
 
-```text
-MSG <remitente> <mensaje>\n
+```
+MSG <remitente> <mensaje>
 ```
 
-#### Ejemplo
+**Ejemplo**
 
-```text
-C1 → ALL Hola a todos
-S  → OK ALL
+```
+C → ALL Hola a todos
 
-C2 ← MSG alice Hola a todos
-C3 ← MSG alice Hola a todos
+S → OK ALL
+
+Otros clientes reciben:
+MSG mirta Hola a todos
 ```
 
 ---
 
-### 5️⃣ PING
+### 5️⃣ FILE
 
-Permite verificar que la conexión sigue activa.
+Permite transferir archivos entre usuarios.
 
-#### Petición
+**Cabecera enviada por el remitente**
 
-```text
-PING\n
+```
+FILE <destinatario> <nombre_archivo> <tam_bytes>\n
 ```
 
-#### Respuesta
+**Confirmación del servidor**
 
-```text
+```
+OK FILE
+```
+
+Tras recibir la confirmación, el cliente transmite exactamente `<tam_bytes>` bytes.
+
+**Cabecera enviada al destinatario**
+
+```
+FILE <remitente> <nombre_archivo> <tam_bytes>\n
+```
+
+A continuación se envían los bytes del archivo.
+
+**Ejemplo**
+
+```
+C1 → FILE gaspar informe.pdf 2048
+
+S  → OK FILE
+
+C1 → [2048 bytes]
+
+S  → FILE mirta informe.pdf 2048
+S  → [2048 bytes]
+```
+
+**Errores**
+
+```
+ERROR Usuario no encontrado
+ERROR Formato: FILE <destino> <nombre> <tam>
+ERROR FILE
+```
+
+---
+
+### 6️⃣ PING
+
+Permite verificar conectividad con el servidor.
+
+**Petición**
+
+```
+PING
+```
+
+**Respuesta**
+
+```
 PONG
 ```
 
-#### Ejemplo
+**Ejemplo**
 
-```text
+```
 C → PING
 S → PONG
 ```
 
 ---
 
-### 6️⃣ QUIT
+### 7️⃣ QUIT
 
-Finaliza la sesión y cierra la conexión.
+Finaliza la sesión.
 
-#### Petición
+**Petición**
 
-```text
-QUIT\n
+```
+QUIT
 ```
 
-#### Respuesta
+**Respuesta**
 
-```text
-OK QUIT\n
+```
+OK QUIT
 ```
 
 Luego el servidor cierra la conexión.
-
-#### Ejemplo
-
-```text
-C → QUIT
-S → OK QUIT
-```
 
 ---
 
 ## 🚨 Errores Globales
 
-### Cliente no autenticado
+Comando desconocido:
 
-```text
-ERROR Debe hacer LOGIN primero
+```
+ERROR Comando desconocido
 ```
 
-### Comando desconocido
+Intento de usar comandos sin autenticación:
 
-```text
-ERROR Comando desconocido
+```
+ERROR Debe hacer LOGIN primero
 ```
 
 ---
 
 ## 🔄 Flujo de una Sesión Típica
 
-```text
-┌───────────────────────────────────────┐
-│ Cliente se conecta por TCP            │
-├───────────────────────────────────────┤
-│ LOGIN alice                           │
-│ OK                                    │
-├───────────────────────────────────────┤
-│ LIST                                  │
-│ Usuarios conectados: bob,charlie      │
-├───────────────────────────────────────┤
-│ MSG bob Hola Bob                      │
-│ OK MSG                                │
-├───────────────────────────────────────┤
-│ ALL Hola a todos                      │
-│ OK ALL                                │
-├───────────────────────────────────────┤
-│ PING                                  │
-│ PONG                                  │
-├───────────────────────────────────────┤
-│ QUIT                                  │
-│ OK QUIT                               │
-└───────────────────────────────────────┘
+```
+1. Cliente conecta por TCP
+
+2. LOGIN mirta
+   ← OK
+
+3. LIST
+   ← Usuarios conectados: gaspar,carlos
+
+4. MSG gaspar Hola gaspar
+   ← OK MSG
+
+5. ALL Hola a todos
+   ← OK ALL
+
+6. FILE gaspar documento.txt 500
+   ← OK FILE
+   → [500 bytes]
+
+7. PING
+   ← PONG
+
+8. QUIT
+   ← OK QUIT
 ```
 
 ---
@@ -270,18 +308,17 @@ ERROR Comando desconocido
 ## 💾 Limitaciones
 
 * Máximo 10 clientes simultáneos.
-* Máximo 31 caracteres para nombres de usuario (`MAX_USERNAME = 32`, incluyendo `\0`).
-* Tamaño máximo de mensaje limitado por `BUFFER_SIZE`.
-* Comunicación basada en texto plano sobre TCP.
+* Longitud máxima de nombre de usuario: 31 caracteres.
+* Comunicación basada en TCP.
+* Transferencia de archivos mediante streaming binario sobre la misma conexión.
 
 ---
 
 ## 📁 Estructura del Repositorio
 
-```text
+```
 chat-protocol/
-├── README.md
-├── cliente.py
+├── chat-sv.c
 ├── client.h
-└── chat-sv.c
+└── cliente.py
 ```

@@ -12,7 +12,7 @@
 #include <sys/select.h>
 #include "client.h"
 #define PORT 8888
-#define IP "127.0.0.1"
+#define IP "0.0.0.0"
 #define MAX_CLIENTS 10
 #define MAX_USERNAME 32
 #define BUFFER_SIZE 1025
