@@ -318,7 +318,6 @@ ERROR Debe hacer LOGIN primero
 
 ```
 chat-protocol/
-├── README.md
 ├── chat-sv.c
 ├── client.h
 └── cliente.py
