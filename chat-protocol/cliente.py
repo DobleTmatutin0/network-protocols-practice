@@ -150,6 +150,64 @@ def recibir_exactos(s, buffer, cantidad):
     return buffer[:cantidad], buffer[cantidad:]
 
 
+# Buffer compartido para el input parcial y su candado (nivel módulo)
+current_input = ""
+input_lock = threading.Lock()
+
+try:
+    import msvcrt
+
+    def getch():
+        return msvcrt.getwch()
+except Exception:
+    import tty
+    import termios
+
+    def getch():
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        return ch
+
+
+def read_input(prompt):
+    """Lee la línea carácter a carácter manteniendo el buffer parcial en `current_input`.
+    Esto permite que el hilo receptor pueda reimprimir lo que el usuario está escribiendo.
+    """
+    global current_input
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    buf = ""
+    while True:
+        ch = getch()
+        # Normalizar retorno de carro/line feed
+        if ch in ("\r", "\n"):
+            print("")
+            with input_lock:
+                current_input = ""
+            return buf
+        # Backspace (Windows/Unix)
+        if ch in ("\x08", "\x7f"):
+            if len(buf) > 0:
+                buf = buf[:-1]
+                # borrar caracter en pantalla
+                sys.stdout.write('\b \b')
+                sys.stdout.flush()
+                with input_lock:
+                    current_input = buf
+            continue
+        # Caracter normal: añadir y eco
+        buf += ch
+        sys.stdout.write(ch)
+        sys.stdout.flush()
+        with input_lock:
+            current_input = buf
+
+
 def procesar_linea(texto):
     texto = texto.strip()
     if not texto:
@@ -159,7 +217,12 @@ def procesar_linea(texto):
         partes = texto.split(" ", 2)
         if len(partes) >= 3:
             remitente, mensaje = partes[1], partes[2]
-            print(f"\r{remitente}: {mensaje}\n>", end="", flush=True)
+            # Limpiar línea actual, mostrar mensaje, y reimprimir prompt + texto parcial
+            with input_lock:
+                cur = current_input
+            print(f"\r\033[K{remitente}: {mensaje}")
+            sys.stdout.write(">" + cur)
+            sys.stdout.flush()
             return
 
     if texto == "OK FILE":
@@ -169,7 +232,12 @@ def procesar_linea(texto):
     if texto == "OK MSG" or texto == "OK ALL":
         return
 
-    print(f"\r{texto}\n>", end="", flush=True)
+    # Limpiar línea actual antes de mostrar respuesta del servidor y reimprimir input parcial
+    with input_lock:
+        cur = current_input
+    print(f"\r\033[K{texto}")
+    sys.stdout.write(">" + cur)
+    sys.stdout.flush()
 
 
 def recibir_mensajes(s):
@@ -201,7 +269,12 @@ def recibir_mensajes(s):
                     print(rf"[Error] Header invalido {linea}")
                     continue
                 remitente, nombre, tam = partes[1], partes[2], int(partes[3])
+                # Mostrar cabecera de transferencia sin borrar lo que el usuario está escribiendo
+                with input_lock:
+                    cur = current_input
                 print(rf"[File] {remitente} mandando {nombre} ({tam} bytes)")
+                sys.stdout.write(">" + cur)
+                sys.stdout.flush()
 
                 try:
                     datos_archivo, buffer = recibir_exactos(s, buffer, tam)
@@ -213,7 +286,12 @@ def recibir_mensajes(s):
                 with open(destino_local, "wb") as f:
                     f.write(datos_archivo)
 
-                print(f"[File] Guardado como: {destino_local}\n>", end="", flush=True)
+                # Mostrar guardado del archivo y reimprimir prompt + texto parcial
+                with input_lock:
+                    cur = current_input
+                print(f"[File] Guardado como: {destino_local}")
+                sys.stdout.write(">" + cur)
+                sys.stdout.flush()
                 continue
 
             procesar_linea(linea)
@@ -256,7 +334,7 @@ hilo_receptor.start()
 
 # Loop: este hilo solo lee teclado y manda
 while True:
-    texto = input(">")
+    texto = read_input(">")
     estado = manejar_entrada(s, texto)
 
     if estado == "salir":
