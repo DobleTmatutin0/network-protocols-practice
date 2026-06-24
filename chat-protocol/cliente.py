@@ -153,12 +153,26 @@ def recibir_exactos(s, buffer, cantidad):
 # Buffer compartido para el input parcial y su candado (nivel módulo)
 current_input = ""
 input_lock = threading.Lock()
+historial = []  # comandos enviados, del más viejo al más nuevo (para las flechas ↑↓)
 
 try:
     import msvcrt
 
     def getch():
-        return msvcrt.getwch()
+        ch = msvcrt.getwch()
+        if ch in ("\x00", "\xe0"):              # prefijo de tecla especial
+            ch2 = msvcrt.getwch()
+            return {"H": "UP", "P": "DOWN", "K": "LEFT", "M": "RIGHT",
+                    "G": "HOME", "O": "END", "S": "DELETE"}.get(ch2, "IGNORE")
+        if ch in ("\r", "\n"):
+            return "ENTER"
+        if ch == "\x08":
+            return "BACKSPACE"
+        if ch == "\x03":                        # Ctrl-C
+            raise KeyboardInterrupt
+        if ord(ch) < 32:                        # otros caracteres de control
+            return "IGNORE"
+        return ch                               # carácter imprimible normal
 except Exception:
     import tty
     import termios
@@ -169,43 +183,117 @@ except Exception:
         try:
             tty.setraw(fd)
             ch = sys.stdin.read(1)
+            if ch == "\x1b":                    # ESC: posible flecha ESC [ A/B/C/D
+                ch2 = sys.stdin.read(1)
+                if ch2 == "[":
+                    ch3 = sys.stdin.read(1)
+                    if ch3 == "3":
+                        sys.stdin.read(1)       # consumir el '~' final de Delete
+                        return "DELETE"
+                    return {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT",
+                            "H": "HOME", "F": "END"}.get(ch3, "IGNORE")
+                return "IGNORE"
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        if ch in ("\r", "\n"):
+            return "ENTER"
+        if ch in ("\x7f", "\x08"):
+            return "BACKSPACE"
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        if ord(ch) < 32:
+            return "IGNORE"
         return ch
 
 
 def read_input(prompt):
-    """Lee la línea carácter a carácter manteniendo el buffer parcial en `current_input`.
-    Esto permite que el hilo receptor pueda reimprimir lo que el usuario está escribiendo.
+    """Lee la línea manteniendo el buffer parcial en `current_input` (para que el
+    hilo receptor pueda reimprimir lo que el usuario escribe) y soportando edición
+    con cursor (←→ Home End Delete Backspace) e historial (↑↓), como hacía input().
     """
     global current_input
+    buf = []          # caracteres de la línea (lista para insertar/borrar en el medio)
+    pos = 0           # posición del cursor dentro de buf (0..len)
+    hist_index = len(historial)   # apunta a la "línea nueva" (después del último)
+    borrador = []                 # lo que se tipeaba antes de empezar a navegar historial
+
+    def redibujar():
+        # Reescribe la línea entera y deja el cursor en `pos`
+        texto = "".join(buf)
+        sys.stdout.write("\r\033[K" + prompt + texto)
+        atras = len(buf) - pos
+        if atras > 0:
+            sys.stdout.write(f"\033[{atras}D")
+        sys.stdout.flush()
+
     sys.stdout.write(prompt)
     sys.stdout.flush()
-    buf = ""
+
     while True:
-        ch = getch()
-        # Normalizar retorno de carro/line feed
-        if ch in ("\r", "\n"):
-            print("")
+        key = getch()
+
+        if key == "ENTER":
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            texto = "".join(buf)
+            if texto.strip() and (not historial or historial[-1] != texto):
+                historial.append(texto)
             with input_lock:
                 current_input = ""
-            return buf
-        # Backspace (Windows/Unix)
-        if ch in ("\x08", "\x7f"):
-            if len(buf) > 0:
-                buf = buf[:-1]
-                # borrar caracter en pantalla
-                sys.stdout.write('\b \b')
-                sys.stdout.flush()
-                with input_lock:
-                    current_input = buf
-            continue
-        # Caracter normal: añadir y eco
-        buf += ch
-        sys.stdout.write(ch)
-        sys.stdout.flush()
+            return texto
+
+        elif key == "BACKSPACE":
+            if pos > 0:
+                del buf[pos - 1]
+                pos -= 1
+                redibujar()
+        elif key == "DELETE":
+            if pos < len(buf):
+                del buf[pos]
+                redibujar()
+        elif key == "LEFT":
+            if pos > 0:
+                pos -= 1
+                redibujar()
+        elif key == "RIGHT":
+            if pos < len(buf):
+                pos += 1
+                redibujar()
+        elif key == "HOME":
+            if pos != 0:
+                pos = 0
+                redibujar()
+        elif key == "END":
+            if pos != len(buf):
+                pos = len(buf)
+                redibujar()
+        elif key == "UP":
+            if hist_index > 0:
+                if hist_index == len(historial):
+                    borrador = buf[:]          # guardar lo que se estaba escribiendo
+                hist_index -= 1
+                buf = list(historial[hist_index])
+                pos = len(buf)
+                redibujar()
+        elif key == "DOWN":
+            if hist_index < len(historial):
+                hist_index += 1
+                if hist_index == len(historial):
+                    buf = borrador[:]          # volver al borrador
+                else:
+                    buf = list(historial[hist_index])
+                pos = len(buf)
+                redibujar()
+        elif key == "IGNORE":
+            pass
+        else:
+            # carácter imprimible: insertarlo en la posición del cursor
+            buf.insert(pos, key)
+            pos += 1
+            redibujar()
+
         with input_lock:
-            current_input = buf
+            current_input = "".join(buf)
 
 
 def procesar_linea(texto):
